@@ -1,0 +1,86 @@
+#!/usr/bin/ruby
+#
+# callback.rb - Provides a ruby script to invoke a callback from the FreePBX callback plugin using call files and enabling more options
+#
+# Copyright (c) 2008, Jason Goecke
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# USAGE:
+#
+# Requires:
+# Ruby v1.8.x+ - www.ruby-lang.org
+#
+# Add these paramters to the /etc/amportal.conf:
+# CALLBACK_PREFIX=91 - In the US the telco generally delievers 10 digits for CLI
+# CALLBACK_CLI=Callback
+# CALLBACK_RETRY=1
+# CALLBACK_INTERVAL=10 - Time to wait before attempting again
+# CALLBACK_WAIT=30 - Time to wait for an answer in seconds
+#
+# Replace the values above as appropriate for your environment, specifically
+# 'CALLBACK_PREFIX' to prepend the appropriate dialing prefix to reach the
+# outbound routes.
+
+# Obtain configuration paramters from the config file to login to AstMan
+def parse_config_file
+  fh = File.open("#{@amp_configuration}").each do | line |
+    param_str = line.split('=')
+    case param_str[0]
+    when "AMPMGRUSER"
+      @astman_user = param_str[1].rstrip
+    when "AMPMGRPASS"
+      @astman_pass = param_str[1].rstrip
+    when "CALLBACK_PREFIX"
+      @dial_prefix = param_str[1].rstrip
+    when "CALLBACK_CLI"
+      @callerid = param_str[1].rstrip
+    when "CALLBACK_RETRY"
+      @retry = param_str[1].rstrip
+    when "CALLBACK_INTERVAL"
+      @interval = param_str[1].rstrip
+    when "CALLBACK_WAIT"
+      @wait = param_str[1].rstrip
+    when "ASTSPOOLDIR"
+      @spool_dir = param_str[1].rstrip
+    end
+  end
+
+  fh.close
+  return 0
+end
+
+# Get commandline variables
+def parse_commandline
+  destination = "#{@dial_prefix}#{ARGV[0]}" # Phone number to be dialed
+  application = ARGV[1].split('.') # Asterisk application to invoke
+  @app_context = application[0]
+  @app_exten = application[1]
+  @app_priority = application[2]
+  @channel = "Local/" + destination + "@from-internal"
+end
+
+# Sleep the amount of seconds specified
+if ARGV[2]
+  sleep ARGV[2].to_i
+end
+
+# Get configuration out of the config file
+@amp_configuration = "/etc/amportal.conf"
+parse_config_file()
+
+# Get command line variables
+parse_commandline()
+
+#Instead of generating a file, lets do a CLI command
+cli_command = "originate " + @channel + " extension " + @app_exten + "@" + @app_context
+system("asterisk -rx '#{cli_command}'")
